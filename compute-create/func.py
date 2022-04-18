@@ -7,98 +7,21 @@ import string
 from datetime import datetime as dt
 from fdk import response
 
+from oci_object_storage_helper import read_objectstorage_object_content
+from oci_object_storage_helper import write_objectstorage_object_content
+from oci_object_storage_helper import delete_objectstorage_object
 
-def read_objectstorage_object_content(log, client, namespace, bucket_name, object_name):
-    try:
-        log.info(
-            "attempting to read {} from {} in {}".format(
-                object_name, bucket_name, namespace
-            )
-        )
-        object_data = client.get_object(namespace, bucket_name, object_name)
-        if object_data.status == 200:
-            log.info("{} from {} received".format(object_name, bucket_name))
-            return object_data.data.text
-    except Exception as e:
-        log.error("error reading object from object-storage : {}".format(e))
-    return None
+from oci_identity_helper import get_availability_domain
+
+from oci_compute_helper import get_shape
 
 
-def write_objectstorage_object_content(
-    log, client, object_content, object_name, namespace, bucket_name
-):
-    try:
-        log.info(
-            "attempting to write {} to {} in {}".format(
-                object_name, bucket_name, namespace
-            )
-        )
-        put_object_response = client.put_object(
-            namespace_name=namespace,
-            bucket_name=bucket_name,
-            object_name=object_name,
-            put_object_body=object_content,
-        )
-        return put_object_response
-    except Exception as e:
-        log.error("error writing object to object-storage : {}".format(e))
-    return None
-
-
-def delete_objectstorage_object(log, client, namespace, bucket_name, object_name):
-    try:
-        log.info(
-            "attempting to delete {} from {} in {}".format(
-                object_name, bucket_name, namespace
-            )
-        )
-        object_data = client.delete_object(namespace, bucket_name, object_name)
-        if object_data.status == 200:
-            log.info("{} from {} deleted".format(object_name, bucket_name))
-            return True
-    except Exception as e:
-        log.error("error deleting object from object-storage : {}".format(e))
-    return False
-
-
-def respond(ctx,message="OK"):
+def respond(ctx, message="OK"):
     return response.Response(
-        ctx, response_data=json.dumps(
-            {"message": message}),
-        headers={"Content-Type": "application/json"}
+        ctx,
+        response_data=json.dumps({"message": message}),
+        headers={"Content-Type": "application/json"},
     )
-
-
-def get_availability_domain(identity_client, compartment_id, availability_domain_name):
-    list_availability_domains_response = oci.pagination.list_call_get_all_results(
-        identity_client.list_availability_domains, compartment_id
-    )
-    for ad in list_availability_domains_response.data:
-        if availability_domain_name.lower() in ad.name.lower():
-            return ad
-    return None
-
-
-def get_shape(compute_client, compartment_id, availability_domain, shape_name):
-    list_shapes_response = oci.pagination.list_call_get_all_results(
-        compute_client.list_shapes,
-        compartment_id,
-        availability_domain=availability_domain.name,
-    )
-
-    for shape in list_shapes_response.data:
-        if shape_name.lower() == shape.shape.lower():
-            return shape
-    return None
-
-
-def get_image_by_id(compute, image_id):
-    try:
-        image = (compute.get_image(image_id)).data
-        return image
-    except Exception as e:
-        print(e)
-        return None
 
 
 def get_launch_instance_details(
@@ -213,14 +136,14 @@ def launch_compute(
             ssh_public_key,
         )
 
-        # #launch
+        #launch
         instance = launch_instance(
             log, compute_client_composite_operations, launch_instance_details
         )
         return instance
 
     except Exception as e:
-        log.error("error generating numerical values : {}".format(e))
+        log.error("error launching instance : {}".format(e))
         return []
 
 
@@ -393,9 +316,7 @@ def save_Launched_instance(
     return put_object_response
 
 
-def handler(
-    ctx, data: io.BytesIO = None
-):
+def handler(ctx, data: io.BytesIO = None):
     log = logging.getLogger()
     log.info("Executing function code")
 
@@ -406,7 +327,6 @@ def handler(
         object_name = body["data"]["resourceName"]
         bucket_name = body["data"]["additionalDetails"]["bucketName"]
         namespace = body["data"]["additionalDetails"]["namespace"]
-
 
         log.info("eventID : {}".format(eventID))
         log.info("object_name : {}".format(object_name))
@@ -419,7 +339,7 @@ def handler(
 
     # auth objects
     signer = oci.auth.signers.get_resource_principals_signer()
-    #signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
+    # signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
     object_storage_client = oci.object_storage.ObjectStorageClient(
         config={}, signer=signer
     )
@@ -467,8 +387,9 @@ def handler(
         generate_from_template(
             log, object_storage_client, json_object, namespace, bucket_name
         )
-        delete_objectstorage_object(log, object_storage_client, namespace, bucket_name, object_name)
+        delete_objectstorage_object(
+            log, object_storage_client, namespace, bucket_name, object_name
+        )
         return respond(ctx)
 
     return respond(ctx)
-
