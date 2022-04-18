@@ -9,7 +9,6 @@ from fdk import response
 
 
 def read_objectstorage_object_content(log, client, namespace, bucket_name, object_name):
-
     try:
         log.info(
             "attempting to read {} from {} in {}".format(
@@ -62,7 +61,7 @@ def delete_objectstorage_object(log, client, namespace, bucket_name, object_name
     return False
 
 
-def respond(message="OK"):
+def respond(ctx,message="OK"):
     return response.Response(
         ctx, response_data=json.dumps(
             {"message": message}),
@@ -281,11 +280,11 @@ def read_json_object_property(log, json_object, param_path, default_value=None):
             is_list = True if type(temp) is list else False
 
             if part == path_parts[-1]:
-                log.debug(
-                    "path : {}, type : {}, value : {}".format(
-                        param_path, type(temp), temp
-                    )
-                )
+                # log.debug(
+                #     "path : {}, type : {}, value : {}".format(
+                #         param_path, type(temp), temp
+                #     )
+                # )
                 return temp
 
     except Exception as e:
@@ -327,7 +326,6 @@ def generate(log, template):
         for value in values:
             prop = value["prop"]
             convention = value["convention"]
-            print("here")
             base = read_json_object_property(log, template, prop)
             if "[]" not in base:
                 continue
@@ -396,7 +394,7 @@ def save_Launched_instance(
 
 
 def handler(
-    ctx, data: io.BytesIO = None, object_name=None, bucket_name=None, namespace=None
+    ctx, data: io.BytesIO = None
 ):
     log = logging.getLogger()
     log.info("Executing function code")
@@ -417,10 +415,11 @@ def handler(
 
     except Exception as e:
         log.error("error reading object-storage event : {}".format(e))
-        return respond()
+        return respond(ctx)
 
     # auth objects
     signer = oci.auth.signers.get_resource_principals_signer()
+    #signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
     object_storage_client = oci.object_storage.ObjectStorageClient(
         config={}, signer=signer
     )
@@ -435,12 +434,12 @@ def handler(
         log, object_storage_client, namespace, bucket_name, object_name
     )
     if not object_file_content:
-        return respond()
+        return respond(ctx)
     try:
         json_object = json.loads(object_file_content)
     except Exception as e:
         log.error("error reading json file : {}".format(e))
-        return respond()
+        return respond(ctx)
 
     # {} is a single object
     if type(json_object) is dict:
@@ -461,14 +460,15 @@ def handler(
                 log, object_storage_client, namespace, bucket_name, object_name
             )
 
-        return respond()
+        return respond(ctx)
 
     # [{}] or [{},{},...] is a multi template of compute to create
     if type(json_object) is list:
         generate_from_template(
             log, object_storage_client, json_object, namespace, bucket_name
         )
-        return respond()
+        delete_objectstorage_object(log, object_storage_client, namespace, bucket_name, object_name)
+        return respond(ctx)
 
-    return respond()
+    return respond(ctx)
 
