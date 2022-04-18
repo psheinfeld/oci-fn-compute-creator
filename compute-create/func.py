@@ -75,7 +75,7 @@ def get_launch_instance_details(compartment_id, availability_domain, shape, ocpu
 
     instance_metadata = {
         'ssh_authorized_keys': ssh_public_key,
-        'some_metadata_item': 'some_item_value',
+        #'some_metadata_item': 'some_item_value',
         'user_data': cloud_init
     }
 
@@ -85,6 +85,10 @@ def get_launch_instance_details(compartment_id, availability_domain, shape, ocpu
     create_vnic_details = oci.core.models.CreateVnicDetails(
         subnet_id=subnet_id
     )
+    shape_config = oci.core.models.LaunchInstanceShapeConfigDetails(
+        memory_in_gbs = int(memory_in_gbs),
+        ocpus = int(ocpus)
+    )
     launch_instance_details = oci.core.models.LaunchInstanceDetails(
         display_name=instance_name,
         compartment_id=compartment_id,
@@ -93,7 +97,7 @@ def get_launch_instance_details(compartment_id, availability_domain, shape, ocpu
         metadata=instance_metadata,
         source_details=instance_source_via_image_details,
         create_vnic_details=create_vnic_details,
-        shape_config={"memory-in-gbs": int(memory_in_gbs), "ocpus": int(ocpus) }
+        shape_config=shape_config
     )
     return launch_instance_details
 
@@ -108,8 +112,10 @@ def launch_instance(log,compute_client_composite_operations, launch_instance_det
     return instance
 
 
-def launch_compute(log,identity_client,compute_client,compute_client_composite_operations, json_object, namespace, bucket_name):
+def launch_compute(log,signer, json_object, namespace, bucket_name):
     try:
+
+
         #from config file
         compartment_id = read_json_object_property(log,json_object,"compute.compartment_id")
         availability_domain_name = read_json_object_property(log,json_object,"compute.placement.availability_domain_name")
@@ -121,8 +127,14 @@ def launch_compute(log,identity_client,compute_client,compute_client_composite_o
         default_vnic_subnet_id = read_json_object_property(log,json_object,"compute.vnics.[0].subnet_id")
         ssh_public_key = read_json_object_property(log,json_object,"compute.ssh_public_key")
         cloud_init = read_json_object_property(log,json_object,"compute.cloud_init")
+        
 
-        # #from platform
+        #clients
+        identity_client = oci.identity.IdentityClient(config={}, signer=signer)
+        compute_client = oci.core.ComputeClient(config={}, signer=signer)
+        compute_client_composite_operations = oci.core.ComputeClientCompositeOperations(compute_client)
+
+        #from platform
         availability_domain = get_availability_domain(identity_client, compartment_id, availability_domain_name)
         shape = get_shape(compute_client, compartment_id, availability_domain,shape_name)
         launch_instance_details = get_launch_instance_details(compartment_id, availability_domain, shape, ocpus, memory_in_gbs, image_id, default_vnic_subnet_id,instance_name,cloud_init, ssh_public_key)
@@ -259,9 +271,7 @@ def handler(ctx, data: io.BytesIO=None):
     #auth objects
     signer = oci.auth.signers.get_resource_principals_signer()
     object_storage_client = oci.object_storage.ObjectStorageClient(config={}, signer=signer)
-    identity_client = oci.identity.IdentityClient(config={}, signer=signer)
-    compute_client = oci.core.ComputeClient(config={}, signer=signer)
-    compute_client_composite_operations = oci.core.ComputeClientCompositeOperations(compute_client)
+    
 
     #read new object
     object_file_content = read_objectstorage_object_content(log,object_storage_client,namespace, bucket_name, object_name)
@@ -275,7 +285,7 @@ def handler(ctx, data: io.BytesIO=None):
 
     # {} is a single object
     if type(json_object) is dict:
-        launch_compute(log,identity_client,compute_client,compute_client_composite_operations, json_object, namespace, bucket_name)
+        compute = launch_compute(log,signer, json_object, namespace, bucket_name)
         return respond()
     
     # [{}] or [{},{},...] is a multi template of compute to create
