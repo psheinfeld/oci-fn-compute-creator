@@ -1,6 +1,14 @@
+def read_json_first_key(log, json_object):
+    try:
+        return (list(json_object.keys()))[0]
+    except Exception as e:
+        log.error("error reading first key : {}".format(e))
 
 
-def read_json_object_property(log, json_object, param_path, default_value=None):
+def read_json_object_property(log,
+                              json_object,
+                              param_path,
+                              default_value=None):
     try:
         path_parts = param_path.split(".")
         temp = json_object
@@ -27,11 +35,8 @@ def read_json_object_property(log, json_object, param_path, default_value=None):
                 return temp
 
     except Exception as e:
-        log.error(
-            "error geting attribute {} for {} object : {}".format(
-                param_path, type(json_object), e
-            )
-        )
+        log.error("error geting attribute {} for {} object : {}".format(
+            param_path, type(json_object), e))
         return default_value
 
 
@@ -48,9 +53,6 @@ def write_json_object_property(log, json_object, param_path, value):
                 temp[path_parts[-1]] = value
                 return json_object
     except Exception as e:
-        log.error(
-            "error writing attribute {} for {} object : {}".format(
-                param_path, type(json_object), e
-            )
-        )
+        log.error("error writing attribute {} for {} object : {}".format(
+            param_path, type(json_object), e))
         return None

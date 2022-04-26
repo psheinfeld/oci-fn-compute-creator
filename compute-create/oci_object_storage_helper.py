@@ -1,5 +1,5 @@
-def read_objectstorage_object_content(log, client, namespace, bucket_name, object_name):
 
+def read_objectstorage_object_content(log, client, namespace, bucket_name, object_name):
     try:
         log.info(
             "attempting to read {} from {} in {}".format(

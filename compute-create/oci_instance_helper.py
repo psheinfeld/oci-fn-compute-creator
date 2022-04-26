@@ -1,15 +1,13 @@
 import oci
 
-from oci_object_storage_helper import read_objectstorage_object_content
-from oci_object_storage_helper import write_objectstorage_object_content
-from oci_object_storage_helper import delete_objectstorage_object
+from oci_object_storage_helper import *
+from json_object_helper import *
+from oci_instance_helper import *
+from oci_identity_helper import *
+from oci_compute_helper import *
+from generators import *
 
-from json_object_helper import read_json_object_property
-from json_object_helper import write_json_object_property
-
-from oci_identity_helper import get_availability_domain
-
-from oci_compute_helper import get_shape
+import code_constants as cc
 
 
 def save_Launched_instance(
@@ -18,13 +16,24 @@ def save_Launched_instance(
     region = instance.region
     compartment_id = instance.compartment_id
     object_content = str(instance)
-    object_name = region + "/" + compartment_id + "/" + instance.id + ".json"
     print(object_content)
+    object_name = region + "/" + compartment_id + "/" + instance.id + ".json"
     put_object_response = write_objectstorage_object_content(
         log, object_storage_client, object_content, object_name, namespace, bucket_name
     )
     return put_object_response
 
+def save_Launched_instance_to_job(
+    log, object_storage_client, instance, namespace, bucket_name,job_path
+):
+    object_content =   '{"' + cc.INSTANCE + '":' + str(instance) + '}'
+    #str(instance)
+    print(object_content)
+    object_name = job_path + instance.id + ".json"
+    put_object_response = write_objectstorage_object_content(
+        log, object_storage_client, object_content, object_name, namespace, bucket_name
+    )
+    return put_object_response
 
 def get_launch_instance_details(
     compartment_id,
@@ -91,9 +100,9 @@ def launch_compute(
         compartment_id = read_json_object_property(
             log, json_object, "compute.compartment_id"
         )
-        if not compartment_id:
-            log.info("not compute template")
-            return None
+        # if not compartment_id:
+        #     log.info("not compute template")
+        #     return None
         availability_domain_name = read_json_object_property(
             log, json_object, "compute.placement.availability_domain_name"
         )

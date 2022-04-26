@@ -7,17 +7,14 @@ import logging
 from datetime import datetime as dt
 from fdk import response
 
-from oci_object_storage_helper import read_objectstorage_object_content
-from oci_object_storage_helper import write_objectstorage_object_content
-from oci_object_storage_helper import delete_objectstorage_object
+from oci_object_storage_helper import *
+from json_object_helper import *
+from oci_instance_helper import *
+from generators import *
+from oci_volume_helper import *
+from common_helpers import *
 
-from json_object_helper import read_json_object_property
-from json_object_helper import write_json_object_property
-
-from oci_instance_helper import launch_compute
-from oci_instance_helper import save_Launched_instance
-
-from generators import generate_numeric, generate_random, generate_named
+import code_constants as cc
 
 
 def respond(ctx, message="OK"):
@@ -28,29 +25,57 @@ def respond(ctx, message="OK"):
     )
 
 
-def create_resource(
-    log,
-    identity_client,
-    compute_client,
-    compute_client_composite_operations,
-    json_object,
-    namespace,
-    bucket_name,
-):
+def create_resource(log, object_storage_client,
+                    blockstorage_client_composite_operations, identity_client,
+                    compute_client, compute_client_composite_operations,
+                    json_object, namespace, bucket_name, json_object_path):
 
     try:
-        compute = read_json_object_property(log, json_object, "compute")
-        if compute:
-            return launch_compute(
+        resource_type = read_json_first_key(log, json_object)
+        if resource_type == cc.COMPUTE:
+
+            # compute create job path
+            instance_name = read_json_object_property(
+                log, json_object, cc.COMPUTE_JO_INSTANCE_NAME)
+            job_path = generate_job_path(instance_name)
+
+            # generate and save block volume object
+            create_volume_config(log, object_storage_client, json_object,
+                                 namespace, bucket_name, job_path)
+            # create new instance
+            new_compute = launch_compute(
                 log,
                 identity_client,
                 compute_client,
                 compute_client_composite_operations,
                 json_object,
             )
+
+            if new_compute:
+                save_result = save_Launched_instance_to_job(
+                    log, object_storage_client, new_compute, namespace,
+                    bucket_name, job_path)
+
+            return save_result
+
+        if resource_type == cc.VOLUME:
+            volume = create_volume(log, identity_client,
+                                   blockstorage_client_composite_operations,
+                                   json_object)
+            #save result
+            save_result = save_created_volume_to_job(log,
+                                                     object_storage_client,
+                                                     volume, namespace,
+                                                     bucket_name,
+                                                     json_object_path)
+
+            return save_result
+
     except Exception as e:
         log.error("error creating resource : {}".format(e))
         return None
+
+    return None
 
 
 # generates array of names
@@ -68,13 +93,16 @@ def generate(log, template):
 
             # numeric
             if not (convention.get("numerical") is None):
-                names = names + generate_numeric(log, base, convention.get("numerical"))
+                names = names + generate_numeric(log, base,
+                                                 convention.get("numerical"))
             # random
             if not (convention.get("random") is None):
-                names = names + generate_random(log, base, convention.get("random"))
+                names = names + generate_random(log, base,
+                                                convention.get("random"))
             # named
             if not (convention.get("named") is None):
-                names = names + generate_named(log, base, convention.get("named"))
+                names = names + generate_named(log, base,
+                                               convention.get("named"))
 
     except Exception as e:
         log.error("error reading values to generate : {}".format(e))
@@ -86,23 +114,19 @@ def generate(log, template):
     # one by one return
     position = 0
     while position < len(names):
-        yield write_json_object_property(log, template, prop, names[position])[
-            "template"
-        ]
+        yield write_json_object_property(log, template, prop,
+                                         names[position])["template"]
         position = position + 1
 
 
-def generate_from_template(
-    log, object_storage_client, json_object, namespace, bucket_name
-):
+def generate_from_template(log, object_storage_client, json_object, namespace,
+                           bucket_name):
     for template in json_object:
         for generated in generate(log, template):
             log.info("generated : {}".format(generated))
-            object_name = (
-                str(dt.now().strftime("%Y%m%d-%H%M-"))
-                + "".join(random.choice(string.ascii_lowercase) for _ in range(8))
-                + "-compute.json"
-            )
+            object_name = (str(dt.now().strftime("%Y%m%d-%H%M-")) + "".join(
+                random.choice(string.ascii_lowercase)
+                for _ in range(8)) + "-compute.json")
             object_content = json.dumps({"compute": generated})
             log.info("object_name : {}".format(object_name))
             put_object_response = write_objectstorage_object_content(
@@ -136,22 +160,26 @@ def handler(ctx, data: io.BytesIO = None):
         log.error("error reading object-storage event : {}".format(e))
         return respond(ctx)
 
+    #stop runnning for objects with OCID:
+    if cc.OCID_PREFIX in object_name:
+        return respond(ctx)
+    
     # auth objects
     signer = oci.auth.signers.get_resource_principals_signer()
     # signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
     object_storage_client = oci.object_storage.ObjectStorageClient(
-        config={}, signer=signer
-    )
+        config={}, signer=signer)
     identity_client = oci.identity.IdentityClient(config={}, signer=signer)
     compute_client = oci.core.ComputeClient(config={}, signer=signer)
     compute_client_composite_operations = oci.core.ComputeClientCompositeOperations(
-        compute_client
-    )
+        compute_client)
+    blockstorage_client = oci.core.BlockstorageClient(config={}, signer=signer)
+    blockstorage_client_composite_operations = oci.core.BlockstorageClientCompositeOperations(
+        blockstorage_client)
 
     # read new object
     object_file_content = read_objectstorage_object_content(
-        log, object_storage_client, namespace, bucket_name, object_name
-    )
+        log, object_storage_client, namespace, bucket_name, object_name)
     if not object_file_content:
         return respond(ctx)
     try:
@@ -162,30 +190,23 @@ def handler(ctx, data: io.BytesIO = None):
 
     # {} is a single object
     if type(json_object) is dict:
-        instance = create_resource(
-            log,
-            identity_client,
-            compute_client,
-            compute_client_composite_operations,
-            json_object,
-            namespace,
-            bucket_name,
+        json_object_path = object_name[:int(object_name.rfind("/")) + 1]
+        creation_result = create_resource(
+            log, object_storage_client,
+            blockstorage_client_composite_operations, identity_client,
+            compute_client, compute_client_composite_operations, json_object,
+            namespace, bucket_name, json_object_path)
+
+        delete_objectstorage_object(
+            log, object_storage_client, namespace, bucket_name, object_name
         )
-        if instance:
-            save_result = save_Launched_instance(
-                log, object_storage_client, instance, namespace, bucket_name
-            )
-            delete_objectstorage_object(
-                log, object_storage_client, namespace, bucket_name, object_name
-            )
 
         return respond(ctx)
 
     # [{}] or [{},{},...] is a multi template of compute to create
     if type(json_object) is list:
-        generate_from_template(
-            log, object_storage_client, json_object, namespace, bucket_name
-        )
+        generate_from_template(log, object_storage_client, json_object,
+                               namespace, bucket_name)
         delete_objectstorage_object(
             log, object_storage_client, namespace, bucket_name, object_name
         )

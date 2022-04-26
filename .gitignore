@@ -1,6 +1,7 @@
 #local tests
 func_local_2.py
 func_local.py
+os_test.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
