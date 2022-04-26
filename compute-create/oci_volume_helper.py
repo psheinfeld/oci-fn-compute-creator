@@ -77,10 +77,14 @@ def create_volume(log, identity_client,
         autotune = read_json_object_property(log, json_object,
                                              cc.VOLUME_AUTOTUNE, "True")
         autotune = True if autotune == "True" else False
+        attach_type = read_json_object_property(log, json_object, cc.VOLUME_ATTACH_TYPE)
 
         #from platform
         availability_domain = get_availability_domain(
             identity_client, compartment_id, availability_domain_name)
+        
+        freeform_tags = {cc.FREEFORM_TAG_ATTACH_TYPE_KEY: attach_type}
+        
 
         volume_details = oci.core.models.CreateVolumeDetails(
             availability_domain=availability_domain.name,
@@ -88,7 +92,8 @@ def create_volume(log, identity_client,
             display_name=display_name,
             size_in_gbs=int(size),
             vpus_per_gb=int(vpu),
-            is_auto_tune_enabled=autotune)
+            is_auto_tune_enabled=autotune,
+            freeform_tags=freeform_tags)
 
         volume_create_responce = blockstorage_client_composite_operations.create_volume_and_wait_for_state(
             volume_details,

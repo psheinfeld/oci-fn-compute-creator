@@ -54,8 +54,8 @@ def delete_objectstorage_object(log, client, namespace, bucket_name, object_name
 
 def list_objectstorage_objects_by_prefix(log, client,namespace, bucket_name,prefix="",fields="name,timeCreated,size")->list:
     try:
-        object_list = client.list_objects(namespace, bucket_name, prefix = prefix , fields=fields)
-        return object_list.data.objects
+        objects_list = client.list_objects(namespace, bucket_name, prefix = prefix , fields=fields)
+        return objects_list.data.objects
     except Exception as e:
         log.error("error listing objects in object-storage : {}".format(e))
     return []

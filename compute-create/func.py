@@ -49,6 +49,7 @@ def create_resource(log, object_storage_client,
                 compute_client,
                 compute_client_composite_operations,
                 json_object,
+                job_path
             )
 
             if new_compute:
@@ -59,13 +60,13 @@ def create_resource(log, object_storage_client,
             return save_result
 
         if resource_type == cc.VOLUME:
-            volume = create_volume(log, identity_client,
+            new_volume = create_volume(log, identity_client,
                                    blockstorage_client_composite_operations,
                                    json_object)
             #save result
             save_result = save_created_volume_to_job(log,
                                                      object_storage_client,
-                                                     volume, namespace,
+                                                     new_volume, namespace,
                                                      bucket_name,
                                                      json_object_path)
 
@@ -141,7 +142,7 @@ def generate_from_template(log, object_storage_client, json_object, namespace,
 
 def handler(ctx, data: io.BytesIO = None):
     log = logging.getLogger()
-    log.info("Executing function code")
+    log.info("Executing compute-create function code")
 
     # get event information
     try:
@@ -190,7 +191,7 @@ def handler(ctx, data: io.BytesIO = None):
 
     # {} is a single object
     if type(json_object) is dict:
-        json_object_path = object_name[:int(object_name.rfind("/")) + 1]
+        json_object_path = object_name[:object_name.rfind("/") + 1]
         creation_result = create_resource(
             log, object_storage_client,
             blockstorage_client_composite_operations, identity_client,
