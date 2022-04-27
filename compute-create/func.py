@@ -25,6 +25,16 @@ def respond(ctx, message="OK"):
     )
 
 
+def create_vnics_config(log, object_storage_client, json_object,
+                                 namespace, bucket_name, job_path):
+    object_content = read_json_object_property(log, json_object,cc.COMPUTE_VNICS)
+    object_content = json.dumps(object_content)
+    object_name = job_path + cc.OCID_PREFIX + cc.VNICS + ".json"
+    put_object_response = write_objectstorage_object_content(
+        log, object_storage_client, object_content, object_name, namespace,
+        bucket_name)
+
+
 def create_resource(log, object_storage_client,
                     blockstorage_client_composite_operations, identity_client,
                     compute_client, compute_client_composite_operations,
@@ -42,6 +52,10 @@ def create_resource(log, object_storage_client,
             # generate and save block volume object
             create_volume_config(log, object_storage_client, json_object,
                                  namespace, bucket_name, job_path)
+            
+            create_vnics_config(log, object_storage_client, json_object,
+                                 namespace, bucket_name, job_path)
+
             # create new instance
             new_compute = launch_compute(
                 log,
@@ -89,7 +103,8 @@ def generate(log, template):
             prop = value["prop"]
             convention = value["convention"]
             base = read_json_object_property(log, template, prop)
-            if "[]" not in base:
+            if cc.TEMPLATE_PLACEHOLDER not in base:
+                log.error("no {} found in value {} at path {} ".format(cc.TEMPLATE_PLACEHOLDER,base,prop))
                 continue
 
             # numeric

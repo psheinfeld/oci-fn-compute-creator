@@ -1,0 +1,64 @@
+[
+    {
+      "values": [
+        {
+          "prop": "template.instance_name",
+          "convention": {
+            "numerical": {
+              "start": "1",
+              "stop": "2",
+              "step": "1",
+              "padding": "6"
+            },
+            "named": [
+              "named_a",
+              "named_b"
+            ],
+            "random": {
+              "len": "20",
+              "size": "1",
+              "type": "ascii_lowercase"
+            }
+          }
+        }
+      ],
+      "template": {
+        "compartment_id": "ocid1.compartment.oc1..aaaaa...qnxya",
+        "placement": {
+          "availability_domain_name": "EU-FRANKFURT-1-AD-2",
+          "region_name": "eu-frankfurt-1"
+        },
+        "shape": {
+          "shape_name": "VM.Standard.E3.Flex",
+          "memory_in_gbs": "2",
+          "ocpus": "1"
+        },
+        "image_id": "ocid1.image.oc1.eu-frankfurt-1.aaaaaaaa...gemiq",
+        "instance_name": "instance-disks-and-vnics-[]",
+        "vnics": [
+            {
+              "subnet_id": "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaax...ouqyq",
+              "assign_public_ip": "False",
+              "assign_private_dns_record" : "True",
+              "skip_source_dest_check":"False"
+            },
+            {
+              "subnet_id": "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaax...ouqyq",
+              "assign_public_ip": "False",
+              "assign_private_dns_record" : "True",
+              "skip_source_dest_check":"False"
+            }
+          ],
+          "volumes": [
+            {
+              "size_in_gbs": "1024",
+              "vpus_per_gb": "0",
+              "is_auto_tune_enabled": "False",
+              "attach_type": "iscsi"
+            }
+          ],
+        "ssh_public_key": "ssh-rsa AAAAB3Nz...0922",
+        "cloud_init": "IyEvYmluL2Jhc2gKCiMgVGhpcyBmaWxlIHdpbGwgYmUgQmFzZTY0LWVkIGFuZCBwcm92aWRlZCBhcyB1c2VyX2RhdGEgd2hlbiBsYXVuY2hpbmcgYW4gaW5zdGFuY2UuCiMgU2VlOiBodHRwczovL2RvY3MuY2xvdWQub3JhY2xlLmNvbS9hcGkvIy9lbi9pYWFzLzIwMTYwOTE4L2RhdGF0eXBlcy9MYXVuY2hJbnN0YW5jZURldGFpbHMKIyBmb3IgbW9yZSBpbmZvcm1hdGlvbgoKbWtkaXIgL3RtcC9teWRpcgp0b3VjaCAvdG1wL215ZGlyL215dHh0LnR4dAo="
+      }
+    }
+  ]

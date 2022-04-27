@@ -1,8 +1,9 @@
 schema_version: 20180708
 name: compute-attach-devices
-version: 0.0.19
+version: 0.0.22
 runtime: python
 build_image: fnproject/python:3.8-dev
 run_image: fnproject/python:3.8
 entrypoint: /python/bin/fdk /function/func.py handler
 memory: 256
+timeout: 240

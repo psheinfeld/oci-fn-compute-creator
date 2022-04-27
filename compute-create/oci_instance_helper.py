@@ -27,12 +27,28 @@ def save_Launched_instance_to_job(log, object_storage_client, instance,
                                   namespace, bucket_name, job_path):
     object_content = '{"' + cc.INSTANCE + '":' + str(instance) + '}'
     #str(instance)
-    print(object_content)
+    #print(object_content)
     object_name = job_path + instance.id + ".json"
     put_object_response = write_objectstorage_object_content(
         log, object_storage_client, object_content, object_name, namespace,
         bucket_name)
     return put_object_response
+
+def get_CreateVnicDetails(vnic,instance_name):
+    try:
+        details = oci.core.models.CreateVnicDetails(
+            subnet_id=vnic[cc.VNIC_SUBNET],
+            assign_public_ip = True if vnic[cc.VNIC_ASSIGN_PUBLIC] == cc.CONFIG_TRUE_VALUE else False,
+            hostname_label = instance_name,
+            display_name = "vnic0-" + instance_name,
+            skip_source_dest_check = True if vnic[cc.VNIC_SKIP_DEST_CHECK] == cc.CONFIG_TRUE_VALUE else False,
+            assign_private_dns_record = True if vnic[cc.VNIC_ASSIGN_DNS] == cc.CONFIG_TRUE_VALUE else False
+        )
+    except Exception as e:
+        details = oci.core.models.CreateVnicDetails(
+            subnet_id=vnic[cc.VNIC_SUBNET],
+        )
+    return details
 
 
 def get_launch_instance_details(
@@ -42,7 +58,7 @@ def get_launch_instance_details(
     ocpus,
     memory_in_gbs,
     image_id,
-    subnet_id,
+    default_vnic,
     instance_name,
     cloud_init,
     ssh_public_key,
@@ -57,8 +73,7 @@ def get_launch_instance_details(
 
     instance_source_via_image_details = oci.core.models.InstanceSourceViaImageDetails(
         image_id=image_id)
-    create_vnic_details = oci.core.models.CreateVnicDetails(
-        subnet_id=subnet_id)
+    create_vnic_details = get_CreateVnicDetails(default_vnic,instance_name)
     shape_config = oci.core.models.LaunchInstanceShapeConfigDetails(
         memory_in_gbs=int(memory_in_gbs), ocpus=int(ocpus))
     launch_instance_details = oci.core.models.LaunchInstanceDetails(
@@ -88,6 +103,7 @@ def launch_instance(log, compute_client_composite_operations,
     return instance
 
 
+
 def launch_compute(
     log,
     identity_client,
@@ -101,9 +117,6 @@ def launch_compute(
         # from config file
         compartment_id = read_json_object_property(log, json_object,
                                                    "compute.compartment_id")
-        # if not compartment_id:
-        #     log.info("not compute template")
-        #     return None
         availability_domain_name = read_json_object_property(
             log, json_object, "compute.placement.availability_domain_name")
         shape_name = read_json_object_property(log, json_object,
@@ -116,8 +129,10 @@ def launch_compute(
                                              "compute.image_id")
         instance_name = read_json_object_property(log, json_object,
                                                   "compute.instance_name")
-        default_vnic_subnet_id = read_json_object_property(
-            log, json_object, "compute.vnics.[0].subnet_id")
+        # default_vnic_subnet_id = read_json_object_property(
+        #     log, json_object, "compute.vnics.[0].subnet_id")
+        default_vnic = read_json_object_property(
+             log, json_object, "compute.vnics.[0]")
         ssh_public_key = read_json_object_property(log, json_object,
                                                    "compute.ssh_public_key")
         cloud_init = read_json_object_property(log, json_object,
@@ -135,7 +150,7 @@ def launch_compute(
             ocpus,
             memory_in_gbs,
             image_id,
-            default_vnic_subnet_id,
+            default_vnic,
             instance_name,
             cloud_init,
             ssh_public_key,
